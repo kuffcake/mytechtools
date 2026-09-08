@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Berlin to Vienna and Back — 14 Day Route</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root{
+    --navy: #142440;
+    --navy-deep: #0d1a30;
+    --paper: #EFE7D8;
+    --paper-dim: #E2D8C4;
+    --amber: #F2A93B;
+    --red: #C1443C;
+    --teal: #4F8B8B;
+    --ink: #1B1B1B;
+    --cream-text: #F2EFE6;
+    --line: rgba(242,239,230,0.18);
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--navy);
+    color:var(--cream-text);
+    font-family:'Inter', sans-serif;
+    line-height:1.55;
+  }
+  h1,h2,h3, .display{
+    font-family:'Big Shoulders Display', sans-serif;
+    text-transform:uppercase;
+    letter-spacing:0.01em;
+    font-weight:800;
+    line-height:0.95;
+  }
+  .mono{ font-family:'IBM Plex Mono', monospace; }
+
+  /* ===== HERO / DEPARTURE BOARD ===== */
+  .hero{
+    padding: 72px 24px 40px;
+    max-width: 1080px;
+    margin: 0 auto;
+    text-align:center;
+  }
+  .hero .kicker{
+    font-family:'IBM Plex Mono', monospace;
+    color:var(--amber);
+    font-size:0.85rem;
+    letter-spacing:0.18em;
+    margin-bottom:18px;
+  }
+  .hero h1{
+    font-size:clamp(2.6rem, 7vw, 5.2rem);
+    margin:0 0 8px;
+    color:var(--paper);
+  }
+  .hero p.sub{
+    max-width:560px;
+    margin:18px auto 0;
+    color:rgba(242,239,230,0.72);
+    font-size:1.05rem;
+  }
+
+  .board{
+    margin:44px auto 0;
+    max-width:900px;
+    background:var(--navy-deep);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:22px 18px;
+    overflow:hidden;
+  }
+  .board-row{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    padding:9px 6px;
+    border-bottom:1px solid var(--line);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.92rem;
+  }
+  .board-row:last-child{border-bottom:none;}
+  .board-row .day{ color:var(--amber); width:52px; flex-shrink:0; }
+  .board-row .stop{ color:var(--paper); flex:1; text-align:left; letter-spacing:0.03em;}
+  .board-row .mode{ color:rgba(242,239,230,0.5); width:110px; text-align:right; flex-shrink:0;}
+  @media (max-width:560px){
+    .board-row{font-size:0.78rem; gap:8px;}
+    .board-row .mode{width:70px;}
+  }
+
+  /* ===== ROUTE LINE ===== */
+  .route-section{
+    background:var(--paper);
+    color:var(--ink);
+    padding:70px 24px 90px;
+  }
+  .route-inner{ max-width:1080px; margin:0 auto; }
+  .section-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.8rem;
+    letter-spacing:0.14em;
+    color:var(--red);
+    margin-bottom:6px;
+  }
+  .route-section h2{
+    font-size:clamp(2rem,4.5vw,3.2rem);
+    color:var(--navy);
+    margin:0 0 40px;
+  }
+  #map{
+    width:100%;
+    height:460px;
+    border-radius:6px;
+    border:1px solid #d7cbac;
+    margin-top:8px;
+    filter: sepia(8%) saturate(85%);
+  }
+  .leaflet-popup-content-wrapper{
+    background:var(--navy);
+    color:var(--paper);
+    border-radius:4px;
+  }
+  .leaflet-popup-content{ font-family:'Inter', sans-serif; font-size:0.85rem; margin:10px 12px;}
+  .leaflet-popup-content b{ font-family:'Big Shoulders Display', sans-serif; font-size:1.1rem; text-transform:uppercase; }
+  .leaflet-popup-tip{ background:var(--navy); }
+  .map-caption{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.72rem;
+    color:#6b6250;
+    margin:10px 2px 0;
+    letter-spacing:0.02em;
+  }
+  .line-map{ position:relative; padding: 20px 0 10px; }
+  .line-map svg{ width:100%; height:auto; display:block; }
+  .stop-labels{
+    display:grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap:4px;
+    margin-top:2px;
+  }
+  .stop-labels div{
+    font-size:0.72rem;
+    text-align:center;
+    line-height:1.25;
+  }
+  .stop-labels .city{ font-weight:700; text-transform:uppercase; letter-spacing:0.02em; }
+  .stop-labels .country{ color:#6b6250; font-family:'IBM Plex Mono', monospace; font-size:0.7rem; }
+  @media (max-width:800px){
+    .stop-labels{ grid-template-columns: repeat(5, 1fr); }
+  }
+  @media (max-width:480px){
+    .stop-labels{ grid-template-columns: repeat(3, 1fr); }
+  }
+
+  /* ===== ITINERARY (TICKET STUBS) ===== */
+  .itinerary-section{
+    background:var(--navy);
+    padding:90px 24px;
+  }
+  .itin-inner{ max-width:900px; margin:0 auto; }
+  .itinerary-section h2{ color:var(--paper); font-size:clamp(2rem,4.5vw,3.2rem); margin:0 0 8px;}
+  .itinerary-section .lead{ color:rgba(242,239,230,0.65); max-width:560px; margin:0 0 50px; }
+
+  .ticket{
+    display:grid;
+    grid-template-columns: 130px 1fr;
+    background:var(--paper);
+    color:var(--ink);
+    border-radius:6px;
+    margin-bottom:22px;
+    position:relative;
+    overflow:hidden;
+  }
+  .ticket::after{
+    content:"";
+    position:absolute;
+    left:130px;
+    top:0; bottom:0;
+    width:0;
+    border-left:2px dashed rgba(20,36,64,0.25);
+  }
+  .ticket .stub{
+    background:var(--navy);
+    color:var(--paper);
+    padding:22px 14px;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    text-align:center;
+    gap:6px;
+  }
+  .ticket .stub .daynum{
+    font-family:'Big Shoulders Display', sans-serif;
+    font-weight:800;
+    font-size:2.1rem;
+    line-height:1;
+    color:var(--amber);
+  }
+  .ticket .stub .daylabel{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.65rem;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:rgba(242,239,230,0.65);
+  }
+  .ticket .body{ padding:22px 26px; }
+  .ticket .route-title{
+    font-family:'Big Shoulders Display', sans-serif;
+    font-weight:700;
+    font-size:1.5rem;
+    text-transform:uppercase;
+    color:var(--navy);
+    margin:0 0 4px;
+  }
+  .ticket .meta{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px 18px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.72rem;
+    color:var(--red);
+    margin-bottom:12px;
+    letter-spacing:0.03em;
+  }
+  .ticket .meta span::before{ content:"— "; color:#a89b7e; }
+  .ticket .desc{ font-size:0.95rem; color:#3a3527; max-width:62ch; }
+  .ticket .overnight{
+    margin-top:12px;
+    font-size:0.78rem;
+    font-family:'IBM Plex Mono', monospace;
+    color:var(--teal);
+  }
+  @media (max-width:600px){
+    .ticket{ grid-template-columns: 90px 1fr; }
+    .ticket::after{ left:90px; }
+    .ticket .body{ padding:18px 16px; }
+  }
+
+  .day-photos{
+    display:flex;
+    gap:10px;
+    margin-top:14px;
+    flex-wrap:wrap;
+  }
+  .day-photos figure{
+    margin:0;
+    width:140px;
+  }
+  .day-photos img{
+    display:block;
+    width:140px;
+    height:100px;
+    object-fit:cover;
+    border-radius:4px;
+    border:1px solid #ddd3ba;
+    background:#e2d8c4;
+  }
+  .day-photos figcaption{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.62rem;
+    color:#8a8062;
+    margin-top:4px;
+    line-height:1.3;
+  }
+  @media (max-width:480px){
+    .day-photos figure{ width:calc(50% - 5px); }
+    .day-photos img{ width:100%; }
+  }
+  .note-block{
+    margin-top:36px;
+    padding:22px 24px;
+    border:1px solid var(--line);
+    border-radius:6px;
+    background:var(--navy-deep);
+    font-size:0.88rem;
+    color:rgba(242,239,230,0.75);
+  }
+  .note-block strong{ color:var(--amber); }
+
+  /* ===== LANDMARKS / POSTCARDS ===== */
+  .landmarks-section{
+    background:var(--paper);
+    color:var(--ink);
+    padding:90px 24px 100px;
+  }
+  .land-inner{ max-width:1080px; margin:0 auto; }
+  .landmarks-section h2{ color:var(--navy); font-size:clamp(2rem,4.5vw,3.2rem); margin:0 0 8px;}
+  .landmarks-section .lead{ color:#5c5646; max-width:560px; margin:0 0 50px; }
+
+  .city-group{ margin-bottom:46px; }
+  .city-group h3{
+    font-size:1.5rem;
+    color:var(--navy);
+    border-bottom:2px solid var(--navy);
+    padding-bottom:8px;
+    margin-bottom:18px;
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+  }
+  .city-group h3 .country-tag{
+    font-family:'IBM Plex Mono', monospace;
+    text-transform:none;
+    font-weight:400;
+    font-size:0.72rem;
+    color:var(--red);
+    letter-spacing:0.06em;
+  }
+  .postcards{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));
+    gap:16px;
+  }
+  .postcard{
+    background:#fff;
+    border:1px solid #ddd3ba;
+    border-radius:4px;
+    padding:16px 18px;
+    box-shadow: 3px 3px 0 rgba(20,36,64,0.08);
+  }
+  .postcard .name{ font-weight:700; margin-bottom:6px; font-size:0.98rem; }
+  .postcard .dist{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.68rem;
+    color:var(--teal);
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+    margin-bottom:8px;
+    display:block;
+  }
+  .postcard .desc{ font-size:0.84rem; color:#4a4536; }
+  .postcard.optional{ opacity:0.72; border-style:dashed; }
+  .postcard .flag{
+    display:inline-block;
+    margin-top:8px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.7rem;
+    letter-spacing:0.05em;
+    text-transform:uppercase;
+    color:var(--red);
+  }
+
+  footer{
+    background:var(--navy-deep);
+    color:rgba(242,239,230,0.55);
+    text-align:center;
+    padding:36px 24px;
+    font-size:0.8rem;
+    font-family:'IBM Plex Mono', monospace;
+  }
+</style>
+</head>
+<body>
+
+<section class="hero">
+  <div class="kicker">14 DAYS · 3 COUNTRIES · ONE RAIL LOOP</div>
+  <h1>Berlin to Vienna<br>and Back</h1>
+  <p class="sub">A two-week overland route from Los Angeles through Germany, into Poland, down to Austria, and
+  back into Bavaria — built around castles, cathedrals, and the harder history in between.</p>
+
+  <div class="board">
+    <div class="board-row"><span class="day">DAY 01</span><span class="stop">LOS ANGELES → BERLIN</span><span class="mode">FLIGHT</span></div>
+    <div class="board-row"><span class="day">DAY 04</span><span class="stop">BERLIN → POTSDAM → BERLIN</span><span class="mode">TRAIN</span></div>
+    <div class="board-row"><span class="day">DAY 05</span><span class="stop">BERLIN → WITTENBERG → LEIPZIG</span><span class="mode">TRAIN</span></div>
+    <div class="board-row"><span class="day">DAY 06</span><span class="stop">LEIPZIG → DRESDEN</span><span class="mode">TRAIN</span></div>
+    <div class="board-row"><span class="day">DAY 07</span><span class="stop">DRESDEN → WROCLAW → KRAKOW</span><span class="mode">TRAIN</span></div>
+    <div class="board-row"><span class="day">DAY 10</span><span class="stop">KRAKOW → VIENNA</span><span class="mode">TRAIN</span></div>
+    <div class="board-row"><span class="day">DAY 12</span><span class="stop">VIENNA → MUNICH</span><span class="mode">TRAIN</span></div>
+    <div class="board-row"><span class="day">DAY 14</span><span class="stop">MUNICH → NUREMBERG → LOS ANGELES</span><span class="mode">TRAIN + FLIGHT</span></div>
+  </div>
+</section>
+
+<section class="route-section">
+  <div class="route-inner">
+    <div class="section-label">THE ROUTE</div>
+    <h2>Ten stops, three countries</h2>
+
+    <div id="map"></div>
+    <p class="map-caption">Solid line: the 14-day route. Dashed spur: the Potsdam day trip out of Berlin.
+    Marker color = country (navy Germany, red Poland, teal Austria).</p>
+
+    <div class="line-map">
+      <svg viewBox="0 0 1000 60" preserveAspectRatio="none">
+        <line x1="30" y1="30" x2="970" y2="30" stroke="#142440" stroke-width="3"/>
+        <circle cx="30" cy="30" r="7" fill="#142440"/>
+        <circle cx="135" cy="30" r="7" fill="#142440"/>
+        <circle cx="240" cy="30" r="7" fill="#142440"/>
+        <circle cx="345" cy="30" r="7" fill="#142440"/>
+        <circle cx="450" cy="30" r="7" fill="#C1443C"/>
+        <circle cx="555" cy="30" r="7" fill="#C1443C"/>
+        <circle cx="660" cy="30" r="7" fill="#C1443C"/>
+        <circle cx="765" cy="30" r="7" fill="#4F8B8B"/>
+        <circle cx="865" cy="30" r="7" fill="#142440"/>
+        <circle cx="965" cy="30" r="7" fill="#142440"/>
+      </svg>
+    </div>
+    <div class="stop-labels">
+      <div><span class="city">Berlin</span><br><span class="country">GERMANY</span></div>
+      <div><span class="city">Potsdam</span><br><span class="country">GERMANY</span></div>
+      <div><span class="city">Wittenberg</span><br><span class="country">GERMANY</span></div>
+      <div><span class="city">Leipzig</span><br><span class="country">GERMANY</span></div>
+      <div><span class="city">Dresden</span><br><span class="country">GERMANY</span></div>
+      <div><span class="city">Wroclaw</span><br><span class="country">POLAND</span></div>
+      <div><span class="city">Krakow</span><br><span class="country">POLAND</span></div>
+      <div><span class="city">Vienna</span><br><span class="country">AUSTRIA</span></div>
+      <div><span class="city">Munich</span><br><span class="country">GERMANY</span></div>
+      <div><span class="city">Nuremberg</span><br><span class="country">GERMANY</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="itinerary-section" id="itinerary">
+  <div class="itin-inner">
+    <div class="section-label" style="color:var(--amber);">DAY BY DAY</div>
+    <h2>The full itinerary</h2>
+    <p class="lead">Fourteen days, compressed from a longer wish list. Notes at the bottom cover what got trimmed
+    and how to add it back if you extend the trip.</p>
+
+    <!-- Day 1 -->
+    <div class="ticket">
+      <div class="stub"><span class="daynum">01</span><span class="daylabel">In flight</span></div>
+      <div class="body">
+        <div class="route-title">Los Angeles → Berlin</div>
+        <div class="meta"><span>Flight, overnight</span><span>13–15 hrs</span></div>
+        <p class="desc">Depart LAX in the evening. This is a lost day to time zones — plan to sleep on the plane.</p>
+      </div>
+    </div>
+
+    <!-- Day 2 -->
+    <div class="ticket">
+      <div class="stub"><span class="daynum">02</span><span class="daylabel">Berlin</span></div>
+      <div class="body">
+        <div class="route-title">Arrival day</div>
+        <div class="meta"><span>Germany</span></div>
+        <p class="desc">Arrive midday, rest and adjust. An easy first walk: Brandenburg Gate, Unter den Linden, Pariser Platz.</p>
+        <div class="day-photos"><figure><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Brandenburg_Gate_Quadriga_at_Night.jpg?width=700" alt="Brandenburg Gate & Reichstag Dome" loading="lazy"><figcaption>Brandenburg Gate & Reichstag Dome</figcaption></figure></div>
+        <div class="overnight">OVERNIGHT — BERLIN</div>
+      </div>
+    </div>
+
+    <!-- Day 3 -->
+    <div class="ticket">
+      <div class="stub"><span class="daynum">03</span><span class="daylabel">Berlin</span></div>
+      <div class="body">
+        <div class="route-title">Museum Island & the Reichstag</div>
+        <div class="meta"><span>Germany</span></div>
+        <p class="desc">Full day: Museum Island (Pergamon / Neues Museum), the Reichstag Dome — book ahead — and Checkpoint Charlie.</p>
+        <div class="day-photos"><figure><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Museumsinsel_2008.jpg?width=700" alt="Museum Island" loading="lazy"><figcaption>Museum Island</figcaption></figure></div>
+        <div class="overnight">OVERNIGHT — BERLIN</div>
+      </div>
+    </div>
+
+    <!-- Day 4 -->
+    <div class="ticket">
+      <div class="stub"><span class="daynum">04</span><span class="daylabel">Day trip</span></div>
+      <div class="body">
+        <div class="route-title">Berlin → Potsdam → Berlin</div>
+        <div class="meta"><span>Germany</span><span>Train, 45 min each way</span></div>
+        <p class="desc">Morning train to Potsdam for Sanssouci Palace and its park, plus Cecilienhof. Back to Berlin by evening
+        for the East Side Gallery or Berlin Wall Memorial if time allows.</p>
+        <div class="day-photos"><figure><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Potsdam_-_Schloss_Sanssouci.jpg?width=700" alt="Sanssouci Palace" loading="lazy"><figcaption>Sanssouci Palace</figcaption></figure><figure><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Berlin_Wall_Trabant_grafitti.jpg?width=700" alt="East Side Gallery" loading="lazy"><figcaption>East Side Gallery</figcaption></figure></div>
+        <div class="overnight">OVERNIGHT — BERLIN</div>
+      </div>
+    </div>
+
+    <!-- Day 5 -->
+    <div class="ticket">
+      <div class="stub"><span class="daynum">05</span><span class="daylabel">Move day</span></div>
+      <div class="body">
+        <div class="route-title">Berlin → Wittenberg → Leipzig</div>
+        <div class="meta"><span>Germany</span><span>Train, 1h45m + 39m</span></div>
+        <p class="desc">Morning free in Berlin, then train to Wittenberg — the Castle Church where Luther posted the 95 Theses,
+        about two hours is enough. Continue to Leipzig, arriving evening.</p>
+        <div class="day-photos"><figure><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Wittenberg_Thesentuer_Schlosskirche.JPG?width=700" alt="Castle Church, Wittenberg" loading="lazy"><figcaption>Castle Church, Wittenberg</figcaption></figure></div>
+        <div class="overnight">OVERNIGHT — LEIPZIG</div>
+      </div>
+    </div>
+
+    <!-- Day 6 -->
+    <div class="ticket">
+      <div class="stub"><span class="daynum">06</span><span class="daylabel">Move day</span></div>
+      <div class="body">
+        <div class="route-title">Leipzig → Dresden</div>
+        <div class="meta"><span>Germany</span><span>Train, 1h15m</span></div>
+        <p class="desc">Leipzig morning: St. Thomas Church (Bach's church) and the Monument to the Battle of the Nations.
+        Afternoon train to Dresden — the Zwinger Palace and a lit-up Frauenkirche after dark.</p>
+        <div class="day-photos"><figure><img src="https://commons.wikimedia.org/wiki/Special:FilePath/St._Thomas_Church,_Leipzig.jpg?width=700" alt="St. Thomas Church, Leipzig" loading="lazy"><figcaption>St. Thomas Church, Leipzig</figcaption></figure><figure><img src="https://commons.wikimedia.org/wiki/Special:FilePath/DD-Schloss-gp.jpg?width=700" alt="Zwinger Palace & Frauenkirche" loading="lazy"><figcaption>Zwinger Palace & Frauenkirche</figcaption></figure></div>
+        <div class="overnight">OVERNIGHT — DRESDEN</div>
+      </div>
+    </div>
+
+    <!-- Day 7 -->
+    <div class="ticket">
+      <div class="stub"><span class="daynum">07</span><span class="daylabel">Border day</span></div>
+      <div class="body">
+        <div class="route-title">Dresden → Wroclaw → Krakow</div>
+        <div class="meta"><span>Germany → Poland</span><span>Train, 3h40m + 3h</span></div>
+        <p class="desc">Dresden morning at leisure (Brühl's Terrace). Train to Wroclaw — use the layover to walk the colorful
+        Rynek if the gap is 2+ hours. Continue to Krakow, arriving evening. The longest travel day of the trip.</p>
+        <div class="day-photos"><figure><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Wroclaw_1.jpg?width=700" alt="Rynek, Wroclaw" loading="lazy"><figcaption>Rynek, Wroclaw</figcaption></figure></div>
+        <div class="overnight">OVERNIGHT — KRAKOW</div>
+      </div>
+    </div>
+
+    <!-- Day 8 -->
+    <div class="ticket">
+      <div class="stub"><span class="daynum">08</span><span class="daylabel">Krakow</span></div>
+      <div class="body">
+        <div class="route-title">Old town & Kazimierz</div>
+        <div class="meta"><span>Poland</span></div>
+        <p class="desc">Wawel Castle and Cathedral, the Old Town Rynek, St. Mary's Basilica, and the Kazimierz
+        (former Jewish) district.</p>
+        <div class="day-photos"><figure><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Wawel_castle.jpg?width=700" alt="Wawel Castle & Cathedral" loading="lazy"><figcaption>Wawel Castle & Cathedral</figcaption></figure></div>
+        <div class="overnight">OVERNIGHT — KRAKOW</div>
+      </div>
+    </div>
+
+    <!-- Day 9 -->
+    <div class="ticket">
+      <div class="stub"><span class="daynum">09</span><span class="daylabel">Krakow</span></div>
+      <div class="body">
+        <div class="route-title">Auschwitz-Birkenau</div>
+        <div class="meta"><span>Poland</span><span>~1.5 hrs each way</span></div>
+        <p class="desc">Full-day trip to the memorial and museum. Book the guided tour slot weeks ahead in high season.
+        An emotionally heavy day — keep the evening low-key.</p>
+        <div class="day-photos"><figure><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Birkenau_gate.JPG?width=700" alt="Auschwitz-Birkenau" loading="lazy"><figcaption>Auschwitz-Birkenau</figcaption></figure></div>
+        <div class="overnight">OVERNIGHT — KRAKOW</div>
+      </div>
+    </div>
+
+    <!-- Day 10 -->
+    <div class="ticket">
+      <div class="stub"><span class="daynum">10</span><span class="daylabel">Border day</span></div>
+      <div class="body">
+        <div class="route-title">Krakow → Vienna</div>
+        <div class="meta"><span>Poland → Austria</span><span>Train, ~5h40m</span></div>
+        <p class="desc">Travel day. The line passes close enough to Bratislava to add it as a stop here, or save it as
+        a half-day trip from Vienna instead — either way it doesn't need its own dedicated day.</p>
+        <div class="day-photos"><figure><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Bratislava_castle_with_fortification,_view_from_down_level.jpg?width=700" alt="Bratislava Old Town" loading="lazy"><figcaption>Bratislava Old Town</figcaption></figure></div>
+        <div class="overnight">OVERNIGHT — VIENNA</div>
+      </div>
+    </div>
+
+    <!-- Day 11 -->
+    <div class="ticket">
+      <div class="stub"><span class="daynum">11</span><span class="daylabel">Vienna</span></div>
+      <div class="body">
+        <div class="route-title">Palaces & the Ringstrasse</div>
+        <div class="meta"><span>Austria</span></div>
+        <p class="desc">Schönbrunn Palace, St. Stephen's Cathedral, the Hofburg, and a walk around the Ringstrasse.</p>
+        <div class="day-photos"><figure><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Sch%C3%B6nbrunn_palace.jpg?width=700" alt="Schönbrunn Palace" loading="lazy"><figcaption>Schönbrunn Palace</figcaption></figure><figure><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Wien_Stefansdom_DSC02656.JPG?width=700" alt="St. Stephen's Cathedral & Hofburg" loading="lazy"><figcaption>St. Stephen's Cathedral & Hofburg</figcaption></figure></div>
+        <div class="overnight">OVERNIGHT — VIENNA</div>
+      </div>
+    </div>
+
+    <!-- Day 12 -->
+    <div class="ticket">
+      <div class="stub"><span class="daynum">12</span><span class="daylabel">Move day</span></div>
+      <div class="body">
+        <div class="route-title">Vienna → Munich</div>
+        <div class="meta"><span>Austria → Germany</span><span>Train, 4h30m</span></div>
+        <p class="desc">Late-morning train to Munich. The route passes near the Mauthausen Memorial (near Linz) —
+        only worth the detour with real schedule flexibility, since it adds a half-day.</p>
+        <div class="overnight">OVERNIGHT — MUNICH</div>
+      </div>
+    </div>
+
+    <!-- Day 13 -->
+    <div class="ticket">
+      <div class="stub"><span class="daynum">13</span><span class="daylabel">Munich</span></div>
+      <div class="body">
+        <div class="route-title">Marienplatz & one big choice</div>
+        <div class="meta"><span>Germany</span></div>
+        <p class="desc">Marienplatz and the Glockenspiel, Nymphenburg Palace. Then choose one: the Dachau Memorial
+        (half day, sobering) or a day trip to Neuschwanstein Castle — doing both needs a 15th day.</p>
+        <div class="day-photos"><figure><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Stadtbild_M%C3%BCnchen.jpg?width=700" alt="Marienplatz & Glockenspiel" loading="lazy"><figcaption>Marienplatz & Glockenspiel</figcaption></figure><figure><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Nymphenburger_Schloss_at_sunset.JPG?width=700" alt="Nymphenburg Palace" loading="lazy"><figcaption>Nymphenburg Palace</figcaption></figure><figure><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Schloss_Neuschwanstein_2013.jpg?width=700" alt="Neuschwanstein Castle" loading="lazy"><figcaption>Neuschwanstein Castle</figcaption></figure></div>
+        <div class="overnight">OVERNIGHT — MUNICH</div>
+      </div>
+    </div>
+
+    <!-- Day 14 -->
+    <div class="ticket">
+      <div class="stub"><span class="daynum">14</span><span class="daylabel">Flight home</span></div>
+      <div class="body">
+        <div class="route-title">Munich → Nuremberg → Los Angeles</div>
+        <div class="meta"><span>Germany → USA</span><span>Train 1h30m + Flight 13–15 hrs</span></div>
+        <p class="desc">Morning train to Nuremberg for the Castle and the Nazi Documentation Center. Back to Munich
+        (or fly direct from Nuremberg if your airline serves it) for an evening flight home. Crossing time zones,
+        you land in LA the same day.</p>
+      </div>
+    </div>
+
+    <div class="note-block">
+      <strong>A note on fitting this into 14 days:</strong> the original wish list — 4–5 days Berlin, 3–4 Vienna, 2 each
+      for Munich and Nuremberg, plus Bayreuth — adds up closer to 16–18 days. This version trims Berlin to 3.5 days,
+      Vienna to 2, Munich to 1.5, and drops the second Nuremberg day and Bayreuth entirely. To restore them, either
+      add 3–4 days to the trip, or cut one leg (e.g. skip Wroclaw/Krakow/Auschwitz and go straight from Dresden to Vienna).
+      <br><br>
+      <strong>Also worth flagging:</strong> the original notes list "Krakow → Venice," but the travel time given (5h40m)
+      matches Krakow → Vienna, not Venice — this itinerary assumes Vienna is correct.
+    </div>
+  </div>
+</section>
+
+<section class="landmarks-section" id="landmarks">
+  <div class="land-inner">
+    <div class="section-label" style="color:var(--red);">ALONG THE WAY</div>
+    <h2>Landmarks & day trips</h2>
+    <p class="lead">What's actually in the plan, and what's close enough to add if the trip grows a few more days.</p>
+
+    <div class="city-group">
+      <h3>Berlin & Potsdam <span class="country-tag">GERMANY</span></h3>
+      <div class="postcards">
+        <div class="postcard">
+          <span class="name">Brandenburg Gate & Reichstag Dome</span>
+          <span class="dist">In city</span>
+          <p class="desc">Free to visit; book the Reichstag dome slot online in advance.</p>
+        </div>
+        <div class="postcard">
+          <span class="name">Museum Island</span>
+          <span class="dist">In city</span>
+          <p class="desc">Pergamon and Neues Museum — the Pergamon's main hall is partly closed for renovation, check ahead.</p>
+        </div>
+        <div class="postcard">
+          <span class="name">East Side Gallery</span>
+          <span class="dist">In city</span>
+          <p class="desc">The longest surviving stretch of the Berlin Wall, now open-air murals.</p>
+        </div>
+        <div class="postcard">
+          <span class="name">Sanssouci Palace</span>
+          <span class="dist">45 min by train</span>
+          <p class="desc">Frederick the Great's summer palace in Potsdam — already on the itinerary.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="city-group">
+      <h3>Wittenberg, Leipzig & Dresden <span class="country-tag">GERMANY</span></h3>
+      <div class="postcards">
+        <div class="postcard">
+          <span class="name">Castle Church, Wittenberg</span>
+          <span class="dist">In town</span>
+          <p class="desc">Where Luther posted the 95 Theses; the old town is UNESCO-listed.</p>
+        </div>
+        <div class="postcard">
+          <span class="name">St. Thomas Church, Leipzig</span>
+          <span class="dist">In city</span>
+          <p class="desc">Bach was cantor here for 27 years — the Bach Museum sits next door.</p>
+        </div>
+        <div class="postcard">
+          <span class="name">Zwinger Palace & Frauenkirche</span>
+          <span class="dist">In city, Dresden</span>
+          <p class="desc">The Frauenkirche is stunning lit up after dark.</p>
+        </div>
+        <div class="postcard optional">
+          <span class="name">Bastei Bridge, Saxon Switzerland</span>
+          <span class="dist">45–60 min from Dresden</span>
+          <p class="desc">Dramatic sandstone cliffs.</p>
+          <span class="flag">NEEDS AN EXTRA HALF DAY</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="city-group">
+      <h3>Wroclaw & Krakow <span class="country-tag">POLAND</span></h3>
+      <div class="postcards">
+        <div class="postcard">
+          <span class="name">Rynek, Wroclaw</span>
+          <span class="dist">In city (layover)</span>
+          <p class="desc">The colorful market square — worth it only if your layover is 2+ hours.</p>
+        </div>
+        <div class="postcard">
+          <span class="name">Wawel Castle & Cathedral</span>
+          <span class="dist">In city, Krakow</span>
+          <p class="desc">Seat of Polish kings for centuries.</p>
+        </div>
+        <div class="postcard">
+          <span class="name">Auschwitz-Birkenau</span>
+          <span class="dist">~1.5 hrs each way</span>
+          <p class="desc">Book the guided tour slot weeks ahead in high season.</p>
+        </div>
+        <div class="postcard optional">
+          <span class="name">Wieliczka Salt Mine</span>
+          <span class="dist">30–45 min from Krakow</span>
+          <p class="desc">UNESCO site; an underground chapel carved entirely from salt.</p>
+          <span class="flag">OPTIONAL ADD-ON</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="city-group">
+      <h3>Vienna, and the border crossings around it <span class="country-tag">AUSTRIA</span></h3>
+      <div class="postcards">
+        <div class="postcard">
+          <span class="name">Schönbrunn Palace</span>
+          <span class="dist">In city</span>
+          <p class="desc">Book skip-the-line tickets in advance.</p>
+        </div>
+        <div class="postcard">
+          <span class="name">St. Stephen's Cathedral & Hofburg</span>
+          <span class="dist">In city</span>
+          <p class="desc">Climb the south tower for the best rooftop view of Vienna.</p>
+        </div>
+        <div class="postcard optional">
+          <span class="name">Bratislava Old Town</span>
+          <span class="dist">~1 hr from Vienna</span>
+          <p class="desc">The easiest extra country on the whole trip — Slovakia, almost on the direct rail line.</p>
+          <span class="flag">OPTIONAL — EASY ADD</span>
+        </div>
+        <div class="postcard optional">
+          <span class="name">Mauthausen Memorial</span>
+          <span class="dist">Near Linz, on the Vienna–Munich line</span>
+          <p class="desc">Former concentration camp, similar tone to Dachau and Auschwitz.</p>
+          <span class="flag">OPTIONAL ADD-ON</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="city-group">
+      <h3>Munich & Nuremberg <span class="country-tag">GERMANY</span></h3>
+      <div class="postcards">
+        <div class="postcard">
+          <span class="name">Marienplatz & Glockenspiel</span>
+          <span class="dist">In city</span>
+          <p class="desc">Shows run at 11am and noon, plus 5pm from March–October.</p>
+        </div>
+        <div class="postcard">
+          <span class="name">Nymphenburg Palace</span>
+          <span class="dist">In city (tram)</span>
+          <p class="desc">Summer residence of the Bavarian royals.</p>
+        </div>
+        <div class="postcard">
+          <span class="name">Dachau Memorial <em>or</em> Neuschwanstein Castle</span>
+          <span class="dist">25 min / ~2 hrs from Munich</span>
+          <p class="desc">Pick one for Day 13 — very different days, both worth it.</p>
+        </div>
+        <div class="postcard optional">
+          <span class="name">Salzburg Old Town</span>
+          <span class="dist">~1.5 hrs from Munich</span>
+          <p class="desc">The easiest cross-border day trip from Munich, if a 15th day opens up.</p>
+          <span class="flag">GREAT EXTENSION</span>
+        </div>
+        <div class="postcard">
+          <span class="name">Nuremberg Castle & Documentation Center</span>
+          <span class="dist">In city, Nuremberg</span>
+          <p class="desc">Panoramic old-town views, and an excellent museum on the rise of the Nazi regime.</p>
+        </div>
+        <div class="postcard optional">
+          <span class="name">Rothenburg ob der Tauber, Bamberg, Bayreuth</span>
+          <span class="dist">1–2 hrs from Nuremberg</span>
+          <p class="desc">All trimmed from this 14-day version for time.</p>
+          <span class="flag">TRIMMED FOR TIME</span>
+        </div>
+      </div>
+    </div>
+    <p style="font-family:'IBM Plex Mono',monospace;font-size:0.68rem;color:#8a8062;margin-top:10px;">
+      Photos for these sights are shown next to the matching day in the Day-by-Day Route Plan above, where they're
+      actually visited. A few here (Bastei Bridge, Wieliczka, Salzburg, Rothenburg/Bamberg/Bayreuth) are optional
+      add-ons not in the 14-day plan, so they're listed without a photo.
+    </p>
+  </div>
+</section>
+
+<footer>
+  BERLIN → POTSDAM → WITTENBERG → LEIPZIG → DRESDEN → WROCLAW → KRAKOW → VIENNA → MUNICH → NUREMBERG
+</footer>
+
+<script>
+if (typeof L === 'undefined') {
+  document.getElementById('map').outerHTML =
+    '<div style="padding:40px;text-align:center;background:#e2d8c4;border-radius:6px;font-family:IBM Plex Mono,monospace;font-size:0.85rem;color:#5c5646;">' +
+    'Map failed to load (Leaflet script was blocked or unavailable). The rest of the page is unaffected — see the route diagram below for the same stop order.' +
+    '</div>';
+} else {
+  const stops = [
+    { name: "Berlin",     lat: 52.520007, lng: 13.404954, country: "Germany", day: "Day 2–5",  color: "#142440" },
+    { name: "Potsdam",    lat: 52.390569, lng: 13.064473, country: "Germany", day: "Day 4",     color: "#142440" },
+    { name: "Wittenberg", lat: 51.870464, lng: 12.641151, country: "Germany", day: "Day 5",     color: "#142440" },
+    { name: "Leipzig",    lat: 51.339696, lng: 12.373075, country: "Germany", day: "Day 5–6",   color: "#142440" },
+    { name: "Dresden",    lat: 51.050409, lng: 13.737262, country: "Germany", day: "Day 6–7",   color: "#142440" },
+    { name: "Wroclaw",    lat: 51.109295, lng: 17.038602, country: "Poland",  day: "Day 7 (layover)", color: "#C1443C" },
+    { name: "Krakow",     lat: 50.064650, lng: 19.944980, country: "Poland",  day: "Day 7–10",  color: "#C1443C" },
+    { name: "Vienna",     lat: 48.208070, lng: 16.371310, country: "Austria", day: "Day 10–12", color: "#4F8B8B" },
+    { name: "Munich",     lat: 48.135125, lng: 11.581981, country: "Germany", day: "Day 12–14", color: "#142440" },
+    { name: "Nuremberg",  lat: 49.454288, lng: 11.074564, country: "Germany", day: "Day 14",    color: "#142440" }
+  ];
+
+  const map = L.map('map', { scrollWheelZoom: false }).setView([50.6, 15.5], 5);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19
+  }).addTo(map);
+
+  // Main route line: Berlin -> Wittenberg -> Leipzig -> Dresden -> Wroclaw -> Krakow -> Vienna -> Munich -> Nuremberg
+  const mainRoute = ["Berlin","Wittenberg","Leipzig","Dresden","Wroclaw","Krakow","Vienna","Munich","Nuremberg"]
+    .map(n => stops.find(s => s.name === n))
+    .map(s => [s.lat, s.lng]);
+
+  L.polyline(mainRoute, { color: "#142440", weight: 3, opacity: 0.85 }).addTo(map);
+
+  // Potsdam spur (day trip out of Berlin, dashed)
+  const berlin = stops.find(s => s.name === "Berlin");
+  const potsdam = stops.find(s => s.name === "Potsdam");
+  L.polyline([[berlin.lat, berlin.lng], [potsdam.lat, potsdam.lng]], {
+    color: "#142440", weight: 2, opacity: 0.6, dashArray: "6 6"
+  }).addTo(map);
+
+  stops.forEach(s => {
+    L.circleMarker([s.lat, s.lng], {
+      radius: 8,
+      color: "#fff",
+      weight: 2,
+      fillColor: s.color,
+      fillOpacity: 1
+    })
+    .addTo(map)
+    .bindPopup(`<b>${s.name}</b><br>${s.country}<br>${s.day}`);
+  });
+}
+</script>
+</body>
+</html>
